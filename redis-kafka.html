@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Flujo Interactivo: Redis y Kafka en Zara (Hot Sale)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* DISEÑO INTERACTIVO DE FLUJO */
+:root{
+  --bg:#f8fafc; --surface:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
+  --redis:#dc2626; --redis-bg:#fef2f2; 
+  --kafka:#0284c7; --kafka-bg:#f0f9ff;
+  --db:#059669; --db-bg:#ecfdf5;
+  --user:#7c3aed; --user-bg:#f5f3ff;
+  --analogy:#f59e0b; --analogy-bg:#fffbeb;
+  --primary:#7c3aed;
+  --f-display:"Inter",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f172a; --surface:#1e293b; --ink:#f1f5f9; --muted:#94a3b8; --line:#334155;
+  --redis:#f87171; --redis-bg:#450a0a; 
+  --kafka:#38bdf8; --kafka-bg:#082f49;
+  --db:#34d399; --db-bg:#022c22;
+  --user:#a78bfa; --user-bg:#2e1065;
+  --analogy:#fbbf24; --analogy-bg:#451a03;
+  --primary:#a78bfa;
+}}
+*{box-sizing:border-box}
+body{margin:0; background:var(--bg); color:var(--ink); font-family:var(--f-display); font-size:15px; line-height:1.6; padding:30px 20px 80px;}
+.wrap{max-width:1200px; margin:0 auto; display:flex; flex-direction:column; gap:30px;}
+h1,h2,h3{margin:0; line-height:1.2;}
+h1{font-size:clamp(28px, 4vw, 42px); font-weight:700; letter-spacing:-0.02em;}
+h2{font-size:24px; font-weight:700; border-bottom:2px solid var(--line); padding-bottom:10px;}
+p{margin:0;}
+.lede{color:var(--muted); font-size:18px; max-width:75ch;}
+
+/* Layout Principal */
+.app-layout{display:grid; grid-template-columns: 1fr 1.3fr; gap:30px; align-items:start;}
+@media (max-width: 900px) { .app-layout{grid-template-columns: 1fr;} }
+
+/* Panel Izquierdo: Línea de Tiempo */
+.timeline{display:flex; flex-direction:column; gap:12px; position:relative;}
+.timeline::before{content:''; position:absolute; left:24px; top:0; bottom:0; width:2px; background:var(--line); z-index:0;}
+
+.step-btn{display:flex; gap:20px; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:16px; cursor:pointer; transition:all 0.3s ease; position:relative; z-index:1; text-align:left; width:100%;}
+.step-btn:hover{border-color:var(--muted); transform:translateX(5px);}
+.step-btn.active{border-color:var(--primary); box-shadow:0 4px 12px rgba(0,0,0,0.05);}
+
+.step-icon{width:50px; height:50px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:20px; color:white; flex-shrink:0; transition:transform 0.3s;}
+.step-btn.active .step-icon{transform:scale(1.1); box-shadow:0 0 15px rgba(0,0,0,0.2);}
+
+.step-info h3{font-size:16px; margin-bottom:4px;}
+.step-info p{font-size:13px; color:var(--muted);}
+
+/* Colores dinámicos */
+.icon-user{background:var(--user);} .icon-redis{background:var(--redis);} .icon-kafka{background:var(--kafka);} .icon-db{background:var(--db);}
+
+/* Panel Derecho: Visualizador */
+.visualizer{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:24px; display:flex; flex-direction:column; gap:20px; min-height: 550px; position:sticky; top:30px;}
+.visualizer-header{display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:10px;}
+.v-title{font-family:var(--f-mono); font-size:12px; color:var(--muted); text-transform:uppercase;}
+.v-tool{font-weight:700; padding:4px 10px; border-radius:6px; font-size:14px;}
+
+/* Bloque de Explicación */
+.explanation-box{background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:18px; position:relative; box-shadow: 0 1px 3px rgba(0,0,0,0.05);}
+.explanation-box::before{content:'📖 ¿Qué está pasando?'; position:absolute; top:-12px; left:16px; background:var(--primary); color:white; font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px; font-family:var(--f-mono);}
+.explanation-box p{font-size:15px; color:var(--ink); margin-top:8px;}
+.explanation-box strong{color:var(--primary);}
+.explanation-box code{background:var(--line); padding:1px 5px; border-radius:4px; font-family:var(--f-mono); font-size:13px;}
+
+/* Bloque de Analogía / Para qué sirve */
+.analogy-box{background:var(--analogy-bg); border:1px solid var(--analogy); border-radius:8px; padding:18px; position:relative; margin-top:8px;}
+.analogy-box::before{content:'💡 Para qué sirve (en simple)'; position:absolute; top:-12px; left:16px; background:var(--analogy); color:#fff; font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px; font-family:var(--f-mono);}
+.analogy-box p{font-size:14px; color:var(--ink); margin-top:8px; line-height:1.5;}
+.analogy-box strong{color:var(--analogy);}
+
+/* Animación */
+.pulse-anim{animation: pulse 0.8s infinite alternate;}
+@keyframes pulse { from { opacity: 1; } to { opacity: 0.6; } }
+
+/* Tarjetas de Comparación final */
+.compare-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px;}
+.compare-card{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:20px;}
+.compare-card h4{margin-top:0; margin-bottom:10px; font-size:18px;}
+.compare-card.redis h4{color:var(--redis);}
+.compare-card.kafka h4{color:var(--kafka);}
+@media (max-width: 600px) { .compare-grid{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>El viaje de una compra: Redis y Kafka paso a paso</h1>
+    <p class="lede">Hacé clic en cada paso para ver cómo se comunican las herramientas. Cada paso incluye una explicación clara y, además, una analogía en lenguaje simple para entender de un vistazo para qué sirve cada tecnología.</p>
+  </header>
+
+  <div class="app-layout">
+    <!-- PANEL IZQUIERDO: PASOS -->
+    <div class="timeline" id="timeline"></div>
+
+    <!-- PANEL DERECHO: VISUALIZADOR -->
+    <div class="visualizer">
+      <div class="visualizer-header">
+        <span class="v-title" id="v-title">Paso 1 de 5</span>
+        <span class="v-tool" id="v-tool">Herramienta</span>
+      </div>
+      
+      <div class="explanation-box" id="v-explanation-container">
+        <p id="v-explanation">Cargando explicación...</p>
+      </div>
+
+      <div class="analogy-box" id="v-analogy-container">
+        <p id="v-analogy">Cargando analogía...</p>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <h2>Conclusión técnica para la defensa (Parte 4)</h2>
+    <p style="margin-bottom:15px; color:var(--muted);">Justificación de diseño: ¿Por qué una tecnología y no la otra?</p>
+    <div class="compare-grid">
+      <div class="compare-card redis">
+        <h4>¿Por qué Redis para el Carrito?</h4>
+        <p><strong>Latencia y volatilidad.</strong> El carrito de compras cambia constantemente y necesita respuesta inmediata (milisegundos). Redis, al estar en RAM, ofrece esa velocidad. Además, el carrito es temporal: no necesita ser guardado en un registro histórico de días.</p>
+      </div>
+      <div class="compare-card kafka">
+        <h4>¿Por qué Kafka para Pagos y Auditoría?</h4>
+        <p><strong>Durabilidad y desacoplamiento.</strong> Un pago no puede perderse. Kafka lo guarda en disco (log secuencial) por días o semanas. Esto permite que el banco, logística y contabilidad lean el mismo evento a su propio ritmo, sin bloquear al usuario, y garantiza que el dato esté ahí para auditorías.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+// DATOS DE LA SIMULACIÓN (Explicación + analogía, sin código)
+const steps = [
+  {
+    id: "user",
+    title: "1. El usuario agrega al carrito",
+    short: "La petición llega al servidor de Zara.",
+    toolName: "Navegador",
+    toolColor: "var(--user)",
+    toolBg: "var(--user-bg)",
+    explanation: "El usuario interactúa con la interfaz web. La app envía una petición al <strong>API Gateway</strong> de Zara. Esta petición contiene los datos del producto (ID, talle, cantidad) y el token de sesión del usuario. El API Gateway actúa como portero, validando que el usuario esté logueado antes de dejar pasar la petición al siguiente nivel.",
+    analogy: "Es como cuando entrás a un shopping: el <strong>API Gateway</strong> es el guardia de seguridad de la puerta. Revisa tu identificación (token de sesión) y, si estás habilitado, te deja pasar al local (los microservicios). Sin ese control, cualquiera podría pedir cosas sin estar registrado."
+  },
+  {
+    id: "redis",
+    title: "2. Redis guarda el carrito",
+    short: "Se guarda en memoria RAM para máxima velocidad.",
+    toolName: "Redis",
+    toolColor: "var(--redis)",
+    toolBg: "var(--redis-bg)",
+    explanation: "El microservicio de carrito recibe la petición y escribe en <strong>Redis</strong> en lugar de la base de datos. Agrupa los productos de un usuario en una sola clave (estructura <em>Hash</em>). Redis procesa esto en memoria RAM (sin tocar disco), lo que tarda menos de 1 ms. Se le asigna un <strong>TTL</strong> (Time To Live) de 24 horas: si el usuario abandona el carrito, se borra automáticamente para no consumir memoria eternamente.",
+    analogy: "Redis es como la <strong>bandeja de entrada de un mozo</strong>: apunta el pedido en el momento, sin ir a buscarlo a un archivo. Es rapidísimo porque lo tiene a mano (en RAM). Y si el cliente se va sin pedir, el mozo borra la comanda al rato (TTL) para no acumular papeles viejos."
+  },
+  {
+    id: "kafka",
+    title: "3. Kafka registra la venta",
+    short: "El pago aprobado se emite como evento.",
+    toolName: "Kafka (Producer)",
+    toolColor: "var(--kafka)",
+    toolBg: "var(--kafka-bg)",
+    explanation: "El usuario paga y el banco aprueba. El microservicio de Pagos NO llama directamente a Logística o Contabilidad (sería lento y acoplado). En su lugar, actúa como <strong>Producer</strong> y escribe un mensaje en un <strong>Topic</strong> de Kafka llamado <code>pagos-aprobados</code>. Kafka guarda el mensaje en disco (log secuencial) y responde rápido. El microservicio de pagos queda libre para atender la siguiente compra.",
+    analogy: "Kafka es como el <strong>tablón de anuncios de una oficina</strong>: el que cobra el pago clava un aviso ('venta aprobada') y se va. No tiene que esperar a que Logística lo lea. Cada área (logística, contabilidad, auditoría) pasa cuando quiere y lee los avisos que le interesan."
+  },
+  {
+    id: "db",
+    title: "4. Logística consume el evento",
+    short: "Se descuenta el stock en la base de datos real.",
+    toolName: "Kafka (Consumer)",
+    toolColor: "var(--db)",
+    toolBg: "var(--db-bg)",
+    explanation: "El microservicio de Logística está suscrito al Topic <code>pagos-aprobados</code> como <strong>Consumer</strong>. Kafka le entrega el mensaje, el servicio lo procesa y actualiza la base de datos PostgreSQL para descontar stock real. Luego, confirma a Kafka que ya procesó el mensaje (commit del <strong>Offset</strong>). Si el servicio se cae, al reiniciar Kafka le devuelve el mensaje desde el último Offset guardado, asegurando que <strong>nunca se pierda una venta</strong>.",
+    analogy: "Es como un <strong>marcapáginas en un libro</strong>: Logística lee el aviso del tablón y, al terminar, anota hasta qué página llegó (commit del offset). Si se corta la luz, al volver retoma justo desde esa marca. Así ningún aviso de venta queda sin leer ni se procesa dos veces."
+  },
+  {
+    id: "kafka2",
+    title: "5. Kafka retiene para auditoría",
+    short: "Los datos quedan en disco por días.",
+    toolName: "Kafka (Durabilidad)",
+    toolColor: "var(--kafka)",
+    toolBg: "var(--kafka-bg)",
+    explanation: "A diferencia de Redis (memoria volátil), Kafka escribe en disco y <strong>no borra los mensajes al ser leídos</strong>. Los retiene según su configuración (ej. 7 días). Esto permite que otros sistemas, como el equipo de Auditoría, puedan <strong>re-leer el Topic desde el principio (Replay)</strong> días después para verificar pagos, sin molestar al sistema de ventas en vivo.",
+    analogy: "Kafka es como una <strong>caja de archivos históricos</strong> que guarda copias de todos los comprobantes por una semana. Si Auditoría necesita revisar algo de hace 3 días, abre la caja y lo encuentra intacto, sin tener que interrumpir al cajero que está atendiendo clientes ahora."
+  }
+];
+
+const timeline = document.getElementById('timeline');
+const vTitle = document.getElementById('v-title');
+const vTool = document.getElementById('v-tool');
+const vExplanation = document.getElementById('v-explanation');
+const vAnalogy = document.getElementById('v-analogy');
+
+// Renderizar botones de la izquierda
+steps.forEach((step, index) => {
+  const btn = document.createElement('button');
+  btn.className = `step-btn ${index === 0 ? 'active' : ''}`;
+  btn.innerHTML = `
+    <div class="step-icon icon-${step.id.replace('2','')}">${index + 1}</div>
+    <div class="step-info">
+      <h3>${step.title}</h3>
+      <p>${step.short}</p>
+    </div>
+  `;
+  btn.onclick = () => activateStep(index);
+  timeline.appendChild(btn);
+});
+
+// Función para activar un paso
+function activateStep(index) {
+  document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.step-btn')[index].classList.add('active');
+
+  const data = steps[index];
+  
+  vTitle.textContent = `Paso ${index + 1} de ${steps.length}`;
+  vTool.textContent = data.toolName;
+  vTool.style.color = data.toolColor;
+  vTool.style.backgroundColor = data.toolBg;
+  
+  vExplanation.innerHTML = data.explanation;
+  vAnalogy.innerHTML = data.analogy;
+
+  vAnalogy.classList.add('pulse-anim');
+  setTimeout(() => vAnalogy.classList.remove('pulse-anim'), 500);
+}
+
+activateStep(0);
+</script>
+</body>
+</html>
